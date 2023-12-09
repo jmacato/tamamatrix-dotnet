@@ -29,24 +29,25 @@ public class I2cBus
     public int i2cHandle(int scl, int sda)
     {
         int ret = oldOut;
-//	printf("I2c state: %d\n", state);
-        if (((oldScl & scl) == 1) && !((oldSda & sda) == 1))
+        // Console.WriteLine("I2c state: {0:D}", state);
+        // Console.WriteLine("I2c received: scl {0:X2} sda {1:X2}", scl, sda);
+        if (oldScl  > 0 && scl > 0 && oldSda != 1 && sda == 1) 
         {
             //Stop condition.
             state = I2C_IDLE;
             ret = 1;
-//		printf("I2C: stop\n");
+            Console.WriteLine("I2C: stop\n");
         }
-        else if ((oldScl & scl) == 1 && (oldSda == 1 && sda != 1))
+        else if    (oldScl >= 1 && scl >= 1 && oldSda == 1 && sda != 1) 
         {
             //Start condition
             state = I2C_B0;
             byteCnt = 0;
             dirOut = 0;
-//		printf("I2C: start\n");
+            Console.WriteLine("I2C: start\n");
             ret = 1;
         }
-        else if (!(oldScl ==1) && (scl == 1) && oldSda == sda && state != I2C_IDLE)
+        else if (oldScl == 0 && scl  > 0 && oldSda == sda && state!=I2C_IDLE) 
         {
             ret = 1;
             //Clock up: bit is clocked in or out.
@@ -68,7 +69,7 @@ public class I2cBus
                         }
                     }
 
-                    if (!((val & 0x80) == 1)) ret = 0;
+                    if ((val & 0x80) != 1) ret = 0;
                     val <<= 1;
                     state++;
                 }
@@ -91,7 +92,7 @@ public class I2cBus
                 else
                 {
                     //Byte is in.
-//				printf("I2C: got byte %d val 0x%02X\n", byteCnt, val);
+                    Console.WriteLine("I2C: got byte {0:X} val 0x{1:X}\n", byteCnt, val);
                     if (byteCnt == 0)
                     {
                         //Address byte

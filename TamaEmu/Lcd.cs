@@ -71,10 +71,7 @@ public class Lcd
             "TRAINING", "MEDICAL", "IR", "ALBUM", "ATTENTION"
         };
         string[] grays = { "█", "▓", "░", " " };
-        
-        Console.Clear();
-        Console.SetCursorPosition(0,0);
-
+         
         for (y = 0; y < 32; y++)
         {
             for (x = 0; x < 48; x++)
