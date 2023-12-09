@@ -3,16 +3,18 @@
 
 using System.Diagnostics;
 
-var FPS_TS = TimeSpan.FromSeconds(1.0 / 15.0);
+int FPS = 15;
+
+var FPS_TS = TimeSpan.FromSeconds(1.0 / FPS);
 
 byte[] rom;
 var speedup = false;
 var stopDisplay = false;
-var aiEnabled = true;
+var aiEnabled = false;
 var t = 0;
 var eeprom = "tama.eep";
 var host = "127.0.0.1";
-var romdir = "rom";
+var romdir = "rom/";
 // Display display;
 var err = false;
 // var k = 0;
@@ -64,12 +66,14 @@ if (err)
 var tama = new Tamagotchi(romdir, eeprom);
 var lcd = new Lcd();
 
+
 // rom = LoadRoms(romdir);
 // tama = TamaInit(rom, eeprom);
 // BenevolentAiInit();
 // UdpInit(host);
 // TermInit();
 // TermRaw(true);
+const int FCPU = 16000000;
 
 var stopwatch = new Stopwatch();
 while (true)
@@ -77,10 +81,12 @@ while (true)
     stopwatch.Restart();
 
     ConsoleKey k = ConsoleKey.None;
+    var cycles = (FCPU / FPS) - 1;
+    tama.tamaRun(cycles);
 
-    tama.NextStep();
-    lcd.Render(tama.dram);
-    
+    lcd.Render(tama.dram, tama.lcd.sizex, tama.lcd.sizey);
+    lcd.Show();
+
     //  tamaRun(tama, FCPU/FPS-1);
     // lcdRender(tama->dram, tama->lcd.sizex, tama->lcd.sizey, &display);
     // udpTick();
@@ -95,10 +101,9 @@ while (true)
 
     if (!speedup || (t & 15) == 0)
     {
-        lcd.Show();
         
         // udpSendDisplay(&display);
-        // tamaDumpHw(tama->cpu);
+        tama.tamaDumpHw();
         // benevolentAiDump();
     }
 
@@ -127,13 +132,13 @@ while (true)
 
     switch (k)
     {
-        case ConsoleKey.NumPad1:
+        case ConsoleKey.Q:
            tama.tamaPressBtn(0);
             break;
-        case ConsoleKey.NumPad2:
+        case ConsoleKey.W:
             tama.tamaPressBtn(  1);
             break;
-        case ConsoleKey.NumPad3:
+        case ConsoleKey.E:
             tama. tamaPressBtn( 2);
             break;
         case ConsoleKey.S:

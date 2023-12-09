@@ -15,7 +15,7 @@ namespace TamaEmu.Processor
 		private static readonly ILogger Logger = new DummyLogger();
 		private int _programCounter;
 		private int _stackPointer;
-	    private int _cycleCount;
+	    protected int _cycleCount;
         private bool _previousInterrupt;
         private bool _interrupt;
         #endregion
@@ -25,7 +25,6 @@ namespace TamaEmu.Processor
         /// <summary>
         /// The memory
         /// </summary>
-        protected byte[] Memory { get; private set; }
 
 		/// <summary>
 		/// The Accumulator. This value is implemented as an integer intead of a byte.
@@ -43,7 +42,7 @@ namespace TamaEmu.Processor
 		/// <summary>
 		/// The Current Op Code being executed by the system
 		/// </summary>
-		public int CurrentOpCode { get; private set; }
+		public int CurrentOpCode { get; protected set; }
         
 		/// <summary>
 		/// The disassembly of the current operation. This value is only set when the CPU is built in debug mode.
@@ -56,7 +55,7 @@ namespace TamaEmu.Processor
 		public int ProgramCounter
 		{
 			get => _programCounter;
-			private set => _programCounter = WrapProgramCounter(value);
+			 set => _programCounter = WrapProgramCounter(value);
 		}
 		/// <summary>
 		/// Points to the Current Position of the Stack.
@@ -65,7 +64,7 @@ namespace TamaEmu.Processor
 		public int StackPointer
 		{
 			get => _stackPointer;
-			private set
+			 set
 			{
 				if (value > 0xFF)
 					_stackPointer = value - 0x100;
@@ -90,18 +89,18 @@ namespace TamaEmu.Processor
 		/// <summary>
 		/// Is true if one of the registers is set to zero.
 		/// </summary>
-		public bool ZeroFlag { get; private set; }
+		public bool ZeroFlag { get; protected set; }
 		/// <summary>
 		/// This determines if Interrupts are currently disabled.
 		/// This flag is turned on during a reset to prevent an interrupt from occuring during startup/Initialization.
 		/// If this flag is true, then the IRQ pin is ignored.
 		/// </summary>
-		public bool DisableInterruptFlag { get; private set; }
+		public bool DisableInterruptFlag { get; protected set; }
 		/// <summary>
 		/// Binary Coded Decimal Mode is set/cleared via this flag.
 		/// when this mode is in effect, a byte represents a number from 0-99. 
 		/// </summary>
-		public bool DecimalFlag { get; private set; }
+		public bool DecimalFlag { get; protected set; }
 		/// <summary>
 		/// This property is set when an overflow occurs. An overflow happens if the high bit(7) changes during the operation. Remember that values from 128-256 are negative values
 		/// as the high bit is set to 1.
@@ -115,7 +114,7 @@ namespace TamaEmu.Processor
 		/// Remember that 128-256 represent negative numbers when doing signed math.
 		/// In shift operations the sign holds the carry.
 		/// </summary>
-		public bool NegativeFlag { get; private set; }
+		public bool NegativeFlag { get; protected set; }
 
         /// <summary>
         /// Set to true when an NMI should occur
@@ -134,8 +133,7 @@ namespace TamaEmu.Processor
         /// </summary>
         public Processor()
 		{
-			Memory = new byte[0x10000];
-			StackPointer = 0x100;
+			StackPointer = 0x1FF;
 		    CycleCountIncrementedAction = () => { };
 		}
 
@@ -146,18 +144,19 @@ namespace TamaEmu.Processor
 		{
             ResetCycleCount();
            
-			StackPointer = 0x1FD;
+			StackPointer = 0x1FF;
 
 			//Set the Program Counter to the Reset Vector Address.
 			ProgramCounter = 0xFFFC;
 			//Reset the Program Counter to the Address contained in the Reset Vector
-			ProgramCounter = ( Memory[ProgramCounter] | ( Memory[ProgramCounter + 1] << 8));;
+			ProgramCounter = ( ReadMemoryValue(ProgramCounter) | ( ReadMemoryValue(ProgramCounter+1)  << 8));;
 
-            CurrentOpCode = Memory[ProgramCounter];
+            CurrentOpCode = ReadMemoryValue(ProgramCounter);
 			
             //SetDisassembly();
 
-			DisableInterruptFlag = true;
+			DisableInterruptFlag = false;
+			ZeroFlag = true;
             _previousInterrupt = false;
             TriggerNmi = false;
             TriggerIrq = false;
@@ -191,47 +190,7 @@ namespace TamaEmu.Processor
                 }                
             }  
         }
-
-		/// <summary>
-		/// Loads a program into the processors memory
-		/// </summary>
-		/// <param name="offset">The offset in memory when loading the program.</param>
-		/// <param name="program">The program to be loaded</param>
-		/// <param name="initialProgramCounter">The initial PC value, this is the entry point of the program</param>
-		public void LoadProgram(int offset, byte[] program, int initialProgramCounter)
-		{
-			LoadProgram(offset, program);
-
-			var bytes = BitConverter.GetBytes(initialProgramCounter);
-
-			//Write the initialProgram Counter to the reset vector
-			WriteMemoryValue(0xFFFC,bytes[0]);
-			WriteMemoryValue(0xFFFD, bytes[1]);
-			
-			//Reset the CPU
-			Reset();
-		}
-
-        /// <summary>
-        /// Loads a program into the processors memory
-        /// </summary>
-        /// <param name="offset">The offset in memory when loading the program.</param>
-        /// <param name="program">The program to be loaded</param>
-        public void LoadProgram(int offset, byte[] program)
-        {
-            if (offset > Memory.Length)
-                throw new InvalidOperationException("Offset '{0}' is larger than memory size '{1}'");
-
-            if (program.Length + offset > Memory.Length)
-                throw new InvalidOperationException(string.Format("Program Size '{0}' Cannot be Larger than Memory Size '{1}' plus offset '{2}'", program.Length, Memory.Length, offset));
-
-            for (var i = 0; i < program.Length; i++)
-            {
-                Memory[i + offset] = program[i];
-            }
-
-            Reset();
-        }
+ 
 		
 		/// <summary>
 		/// The InterruptRequest or IRQ
@@ -241,49 +200,27 @@ namespace TamaEmu.Processor
 		    TriggerIrq = true;
 		}
 
-		        /// <summary>
-        /// Clears the memory
-        /// </summary>
-        public void ClearMemory()
-        {
-            for (var i = 0; i < Memory.Length; i++)
-                Memory[i] = 0x00;
-        }
 
-        /// <summary>
-        /// Returns the byte at the given address.
-        /// </summary>
-        /// <param name="address">The address to return</param>
-        /// <returns>the byte being returned</returns>
-        public virtual byte ReadMemoryValue(int address)
-        {
-            var value  = Memory[address];
-            IncrementCycleCount();
-            
-            return value;
-        }
-        
-        /// <summary>
-        /// Returns the byte at a given address without incrementing the cycle. Useful for test harness. 
-        /// </summary>
-        /// <param name="address"></param>
-        /// <returns></returns>
-        public virtual byte ReadMemoryValueWithoutCycle(int address)
-        {
-            var value = Memory[address];
-            return value;
-        }
+		/// <summary>
+		/// Returns the byte at the given address.
+		/// </summary>
+		/// <param name="address">The address to return</param>
+		/// <returns>the byte being returned</returns>
+		public abstract byte ReadMemoryValue(int address);
 
-        /// <summary>
-        /// Writes data to the given address.
-        /// </summary>
-        /// <param name="address">The address to write data to</param>
-        /// <param name="data">The data to write</param>
-        public virtual void WriteMemoryValue(int address, byte data)
-        {
-            IncrementCycleCount();
-            Memory[address] = data;
-        }
+		/// <summary>
+		/// Returns the byte at a given address without incrementing the cycle. Useful for test harness. 
+		/// </summary>
+		/// <param name="address"></param>
+		/// <returns></returns>
+		public abstract byte ReadMemoryValueWithoutCycle(int address);
+
+		/// <summary>
+		/// Writes data to the given address.
+		/// </summary>
+		/// <param name="address">The address to write data to</param>
+		/// <param name="data">The data to write</param>
+		public abstract void WriteMemoryValue(int address, byte data);
 
         /// <summary>
         /// Gets the Number of Cycles that have elapsed
@@ -313,22 +250,14 @@ namespace TamaEmu.Processor
 	    {
 	        _cycleCount = 0;
 	    }
-
-        /// <summary>
-        /// Dumps the entire memory object. Used when saving the memory state
-        /// </summary>
-        /// <returns></returns>
-        public byte[] DumpMemory()
-        {
-            return Memory;
-        }
+ 
         #endregion
 
 		#region Private Methods
 		/// <summary>
 		/// Executes an Opcode
 		/// </summary>
-		private void ExecuteOpCode()
+		protected void ExecuteOpCode()
 		{
 			//The x+ cycles denotes that if a page wrap occurs, then an additional cycle is consumed.
 			//The x++ cycles denotes that 1 cycle is added when a branch occurs and it on the same page, and two cycles are added if its on a different page./
@@ -1590,20 +1519,20 @@ namespace TamaEmu.Processor
 		/// </summary>
 		
 		/// <returns>The value at the current Stack Pointer</returns>
-		private byte PeekStack()
+		protected byte PeekStack()
 		{
 			//The stack lives at 0x100-0x1FF, but the value is only a byte so it needs to be translated
-			return Memory[StackPointer + 0x100];
+			return ReadMemoryValue(StackPointer + 0x100);
 		}
 
 		/// <summary>
 		/// Write a value directly to the stack without modifying the Stack Pointer
 		/// </summary>
 		/// <param name="value">The value to be written to the stack</param>
-		private void PokeStack(byte value)
+		protected void PokeStack(byte value)
 		{
 			//The stack lives at 0x100-0x1FF, but the value is only a byte so it needs to be translated
-			Memory[StackPointer + 0x100] = value;
+			WriteMemoryValue(StackPointer + 0x100, value); 
 		}
 
 		/// <summary>
@@ -1611,14 +1540,14 @@ namespace TamaEmu.Processor
 		/// </summary>
 		/// <param name="setBreak">Determines if the break flag should be set during conversion. IRQ does not set the flag on the stack, but PHP and BRK do</param>
 		/// <returns></returns>
-		private byte ConvertFlagsToByte(bool setBreak)
+		public byte ConvertFlagsToByte(bool setBreak)
 		{
 			return (byte)((CarryFlag ? 0x01 : 0) + (ZeroFlag ? 0x02 : 0) + (DisableInterruptFlag ? 0x04 : 0) +
 						 (DecimalFlag ? 8 : 0) + (setBreak ? 0x10 : 0) + 0x20 + (OverflowFlag ? 0x40 : 0) + (NegativeFlag ? 0x80 : 0));
 		}
 
         [Conditional("DEBUG")]
-		private void SetDisassembly()
+		protected void SetDisassembly()
         {
             if (!Logger.IsDebugEnabled)
                 return;
@@ -1628,10 +1557,10 @@ namespace TamaEmu.Processor
 			var currentProgramCounter = ProgramCounter;
 
 			currentProgramCounter = WrapProgramCounter(++currentProgramCounter);
-			int? address1 = Memory[currentProgramCounter];
+			int? address1 = ReadMemoryValue(currentProgramCounter);
 		
 			currentProgramCounter = WrapProgramCounter(++currentProgramCounter);
-			int? address2 = Memory[currentProgramCounter];
+			int? address2 = ReadMemoryValue(currentProgramCounter);
 
 			string disassembledStep = string.Empty;
 
@@ -2515,7 +2444,7 @@ namespace TamaEmu.Processor
 
 	internal class DummyLogger : ILogger
 	{
-		public bool IsDebugEnabled { get; set; } = true;
+		public bool IsDebugEnabled { get; set; } = false;
 		public void Log(string s)
 		{
 			 

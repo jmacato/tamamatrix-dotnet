@@ -13,7 +13,7 @@ public class Lcd
     public const short ICON_ATTENTION = (1 << 9);
 
     //tama lcd is 48x32
-    public void Render(byte[] ram, int sx = 32, int sy = 48)
+    public void Render(byte[] ram, int sx, int sy)
     {
         int x, y;
         int b, p;
@@ -23,16 +23,23 @@ public class Lcd
             {
                 if (y >= 16)
                 {
-                    p = x + (sy - y - 1) * sx;
+                    p = (x + (sy - y - 1) * sx);
                 }
                 else
                 {
-                    p = x + (sy - (15 - y) - 1) * sx;
+                    p = (x + (sy - (15 - y) - 1) * sx);
                 }
-
-                b = ram[p / 4];
-                b = (b >> ((3 - (p & 3)) * 2)) & 3;
-                if (y < 32 && x < 48) display.p[y, x] = b;
+                
+                // bug on the original code since
+                // it tries 
+                var i = (p / 4);
+                b = i > 0 ? ram[i] : 0;
+                
+                b = (byte)((b >> ((3 - (p & 3)) * 2)) & 3);
+                if (y < 32 && x < 48)
+                { 
+                    display.p[y, x] = b;
+                }
             }
         }
 
@@ -41,7 +48,7 @@ public class Lcd
         for (x = 19; x < 29; x++)
         {
             b = ram[x / 4];
-            b = (b >> ((3 - (x & 3)) * 2)) & 3;
+            b = ((b >> ((3 - (x & 3)) * 2)) & 3);
             if (b != 0) display.icons |= y;
             y <<= 1;
         }
@@ -64,7 +71,9 @@ public class Lcd
             "TRAINING", "MEDICAL", "IR", "ALBUM", "ATTENTION"
         };
         string[] grays = { "█", "▓", "░", " " };
-        Console.WriteLine("\x33[45;1H\x33[1J\x33[1;1H");
+        
+        Console.Clear();
+        Console.SetCursorPosition(0,0);
 
         for (y = 0; y < 32; y++)
         {

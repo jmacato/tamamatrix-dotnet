@@ -3,14 +3,20 @@ public class i2ceeprom : I2cDev
 {
     public i2ceeprom(string filename)
     {
-        mem = new byte[65536];
-        Array.Fill(mem, byte.MaxValue);
-        File.ReadAllBytes(filename).CopyTo(mem, 0);
+        if (!File.Exists(filename))
+        {
+            var mem = new byte[ushort.MaxValue];
+            Array.Fill(mem, byte.MaxValue);
+            File.WriteAllBytes(filename, mem);
+        }
+        
+        backing = File.Open(filename, FileMode.Open, FileAccess.ReadWrite);
+        backing.Seek(0, SeekOrigin.Begin);
     } 
     
     int adr;
 
-    byte[] mem;
+    private readonly FileStream backing;
 
     public override byte writeCb(byte byteNo, byte val)
     {
@@ -26,8 +32,11 @@ public class i2ceeprom : I2cDev
         else
         {
             int page = adr & 0xFFE0;
+            
+            backing.Seek(adr, SeekOrigin.Begin);
+            backing.WriteByte(val);
+
 //		printf("I2CEEprom write: (%d) addr %02X val %02X\n", byteNo-2, adr, byte);
-            mem[adr] = val;
             adr++;
             //Simulate in-page rollover
             adr = page | (adr & 0x1F);
@@ -39,7 +48,10 @@ public class i2ceeprom : I2cDev
     public override byte readCb(byte byteNo)
     {
         byte r;
-        r = mem[adr];
+        
+        backing.Seek(adr, SeekOrigin.Begin);
+        r = (byte)backing.ReadByte();
+        
 //	printf("I2cEEprom read: addr %02x val %02x\n", adr, r);
         adr++;
         adr &= 0xffff;

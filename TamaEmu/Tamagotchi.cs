@@ -150,17 +150,17 @@ public class Tamagotchi : Processor
         public int sizex;
         public int sizey;
     }
-    
+
     byte[][] roms;
 
     I2cBus i2cbus;
     i2ceeprom i2ceeprom;
-    
+
     byte[] ram = new byte[1536];
     public byte[] dram = new byte[512];
     byte[] ioreg = new byte[255];
     TamaHw hw;
-    TamaLcd lcd;
+public    TamaLcd lcd;
     TamaClk clk;
     byte btnPressed;
     int btnReleaseTm;
@@ -180,26 +180,22 @@ public class Tamagotchi : Processor
         roms = LoadRoms(romdir);
         i2cbus = new I2cBus();
         i2ceeprom = new i2ceeprom(eeprom);
-        
-        i2cbus.i2cAddDev(i2ceeprom, 0xA0);
-        
-        // tama->cpu->Rd6502=tamaReadCb;
-        // tama->cpu->Wr6502=tamaWriteCb;
-        // tama->cpu->User=(void*)tama;
 
+        i2cbus.i2cAddDev(i2ceeprom, 0xA0);
+        lcd = new TamaLcd();
         hw = new TamaHw();
-        hw.bankSel=0;
-        hw.portAdata=0xf; //7-IR recv, 3-batlo 2-but2 1-but1 0-but0
-        hw.portBdata=0xfe;	//0, 1: I2C; 3: IR send,
-        hw.portCdata=0xff;
-        // Reset6502(tama->cpu);
-        ioreg[R_CLKCTL-0x3000]=0x2; //Fosc/8 is default
-        irnx=0;
+        hw.bankSel = 0;
+        hw.portAdata = 0xf; //7-IR recv, 3-batlo 2-but2 1-but1 0-but0
+        hw.portBdata = 0xfe; //0, 1: I2C; 3: IR send,
+        hw.portCdata = 0xff;
+        Reset();
+        ioreg[R_CLKCTL - 0x3000] = 0x2; //Fosc/8 is default
+        irnx = 0;
+        clk = new TamaClk();
         tamaClkRecalc();
     }
 
-
-    void tamaDumpHw()
+    public void tamaDumpHw()
     {
         string[] intfdesc =
         {
@@ -218,57 +214,56 @@ public class Tamagotchi : Processor
         int i;
         int ien = ioreg[0x70] + (ioreg[0x71] << 8);
 
-
-        Console.WriteLine($"Ints enabled: (0x%X)", ien);
+        Console.Write("Ints enabled: (0x{0:X})", ien);
         for (i = 0; i < 16; i++)
         {
             if ((ien & (1 << i)) != 0)
-                Console.WriteLine($"{intfdesc[i]} ");
+                Console.Write($"{intfdesc[i]} ");
         }
 
-        Console.WriteLine($"\nInt flags: ");
+        Console.Write($"\nInt flags: ");
         for (i = 0; i < 16; i++)
         {
-            if ((hw.iflags & (1 << i)) != 0) Console.WriteLine($"{intfdesc[i]}");
+            if ((hw.iflags & (1 << i)) != 0) Console.Write($"{intfdesc[i]}");
         }
 
-        Console.WriteLine($"\nLast active int: ");
+        Console.Write($"\nLast active int: ");
         for (i = 0; i < 16; i++)
         {
-            if ((hw.lastInt & (1 << i)) != 0) Console.WriteLine($"%s ", intfdesc[i]);
+            if ((hw.lastInt & (1 << i)) != 0) Console.Write("{0} ", intfdesc[i]);
         }
 
-        Console.WriteLine($"\nNMI ena:");
+        Console.Write($"\nNMI ena:");
         for (i = 0; i < 8; i++)
         {
-            if ((REG(R_NMICTL) & (1 << i)) != 0) Console.WriteLine($"{nmidesc[i]} ");
+            if ((REG(R_NMICTL) & (1 << i)) != 0) Console.Write($"{nmidesc[i]} ");
         }
 
-        Console.WriteLine($"\n");
-        Console.WriteLine($"Timebase: tbl: {tbldiv[((REG(R_TIMBASE) >> 2) & 3)]}");
-        Console.WriteLine($"tbh {tbhdiv[((REG(R_TIMBASE) >> 0) & 3)]}, ");
-        Console.WriteLine($"t0A {t0diva[((REG(R_TIMCTL) >> 5) & 7)]}, ");
-        Console.WriteLine($"t0B {t0divb[((REG(R_TIMCTL) >> 2) & 7)]}, ");
-        Console.WriteLine($"T1 {t1div[((REG(R_TIMCTL) >> 0) & 3)]}, ");
-        Console.WriteLine($"CPU {ccdiv[REG(R_CLKCTL) & 7]}\n");
+        Console.Write($"\n");
+        Console.Write($"Timebase: tbl: {tbldiv[((REG(R_TIMBASE) >> 2) & 3)]}");
+        Console.Write($"tbh {tbhdiv[((REG(R_TIMBASE) >> 0) & 3)]}, ");
+        Console.Write($"t0A {t0diva[((REG(R_TIMCTL) >> 5) & 7)]}, ");
+        Console.Write($"t0B {t0divb[((REG(R_TIMCTL) >> 2) & 7)]}, ");
+        Console.Write($"T1 {t1div[((REG(R_TIMCTL) >> 0) & 3)]}, ");
+        Console.Write($"CPU {ccdiv[REG(R_CLKCTL) & 7]}\n");
 
-        Console.WriteLine($"Prescalers: tbl: {clk.tblCtr:D7}/" +
-                          $"{clk.tblDiv:D7}, tbh: {clk.tbhCtr:D5}/" +
-                          $"{clk.tbhDiv:D5}, c8k: {clk.c8kCtr:D4}, c2k " +
-                          $"{clk.c2kCtr:D4}, t0: {clk.t0Ctr:D4}/" +
-                          $"{clk.t0Div:D4}, t1: {clk.t1Ctr:D4}/" +
-                          $"{clk.t1Div:D4}, cpu: {clk.cpuCtr:D4}/" +
-                          $"{clk.cpuDiv:D4}");
+        Console.Write($"Prescalers: tbl: {clk.tblCtr:D7}/" +
+                      $"{clk.tblDiv:D7}, tbh: {clk.tbhCtr:D5}/" +
+                      $"{clk.tbhDiv:D5}, c8k: {clk.c8kCtr:D4}, c2k " +
+                      $"{clk.c2kCtr:D4}, t0: {clk.t0Ctr:D4}/" +
+                      $"{clk.t0Div:D4}, t1: {clk.t1Ctr:D4}/" +
+                      $"{clk.t1Div:D4}, cpu: {clk.cpuCtr:D4}/" +
+                      $"{clk.cpuDiv:D4}");
 
-        Console.WriteLine("Btn port reads since last press: {0}\n", btnReads);
-        Console.WriteLine("Current bank: {0}\n", hw.bankSel);
-        Console.WriteLine($"Output bits: A:");
+        Console.Write("Btn port reads since last press: {0}\n", btnReads);
+        Console.Write("Current bank: {0}\n", hw.bankSel);
+        Console.Write($"Output bits: A:");
         tamaDumpBin(hw.portAout, 8);
-        Console.WriteLine($" B:");
+        Console.Write($" B:");
         tamaDumpBin(hw.portBout, 8);
-        Console.WriteLine($" C:");
+        Console.Write($" C:");
         tamaDumpBin(hw.portCout, 8);
-        Console.WriteLine($"\n");
+        Console.Write($"\n");
     }
 
     void tamaDumpBin(int val, int bits)
@@ -277,7 +272,6 @@ public class Tamagotchi : Processor
         for (x = bits - 1; x >= 0; --x)
         {
             Console.Write(((val & (1 << x)) != 0) ? 1 : 0);
-            Console.WriteLine();
         }
     }
 
@@ -520,8 +514,10 @@ public class Tamagotchi : Processor
             //4-7 - SPI for Tamago
 
             // irActive(val & 0x8);
-            // hw.portBdata &= ~1;
-            // if (i2cHandle(i2cbus, val & 2, val & 1) && (val & 1)) hw.portBdata |= 1;
+             hw.portBdata = (byte)(hw.portBdata & ~0x01);
+            
+            if (i2cbus.i2cHandle( val & 2, val & 1) == 1 && (val & 1) == 1)
+                hw.portBdata |= 1;
         }
         else if (addr == R_PCDATA)
         {
@@ -734,23 +730,23 @@ public class Tamagotchi : Processor
         ien = REG(R_INTCTLLO) | (REG(R_INTCTLMI) << 8);
 //	if (ien&hw.iflags) printf("Firing int because of iflags 0x%X\n", (ien&hw.iflags));
         if (((ien & hw.iflags) & (1 << 0)) != 0)
-            Int6502( INT_IRQ, IRQVECT_FP);
+            Int6502(INT_IRQ, IRQVECT_FP);
         if (((ien & hw.iflags) & (1 << 1)) != 0)
-            Int6502( INT_IRQ, IRQVECT_SPI);
+            Int6502(INT_IRQ, IRQVECT_SPI);
         if (((ien & hw.iflags) & (1 << 2)) != 0)
-            Int6502( INT_IRQ, IRQVECT_SPU);
+            Int6502(INT_IRQ, IRQVECT_SPU);
         if (((ien & hw.iflags) & (1 << 3)) != 0)
-            Int6502( INT_IRQ, IRQVECT_FROSCD8K);
+            Int6502(INT_IRQ, IRQVECT_FROSCD8K);
         if (((ien & hw.iflags) & (1 << 4)) != 0)
-            Int6502( INT_IRQ, IRQVECT_FROSCD2K);
+            Int6502(INT_IRQ, IRQVECT_FROSCD2K);
         if (((ien & hw.iflags) & (1 << 7)) != 0)
             Int6502(INT_IRQ, IRQVECT_T0);
         if (((ien & hw.iflags) & (1 << 10)) != 0)
-            Int6502( INT_IRQ, IRQVECT_TBL); //seems to be for animation, 2Hz
+            Int6502(INT_IRQ, IRQVECT_TBL); //seems to be for animation, 2Hz
         if (((ien & hw.iflags) & (1 << 11)) != 0)
-            Int6502( INT_IRQ, IRQVECT_TBH);
+            Int6502(INT_IRQ, IRQVECT_TBH);
         if (((ien & hw.iflags) & (1 << 13)) != 0)
-            Int6502( INT_IRQ, IRQVECT_T1);
+            Int6502(INT_IRQ, IRQVECT_T1);
         //debug: remember last irq somewhere
         if ((ien & hw.iflags) != 0) hw.lastInt = (ien & hw.iflags);
 
@@ -761,7 +757,7 @@ public class Tamagotchi : Processor
             hw.nmiflags |= nmiTrigger;
             if ((REG(R_NMICTL) & nmiTrigger) != 0)
             {
-                Int6502( INT_NMI, 0);
+                Int6502(INT_NMI, 0);
             }
         }
 
@@ -785,63 +781,144 @@ public class Tamagotchi : Processor
         //Now would be a good time to run the cpu, if needed.
         if (hw.remCpuCycles > 0)
         {
-            hw.remCpuCycles = Exec6502( hw.remCpuCycles);
+            hw.remCpuCycles = Exec6502(hw.remCpuCycles);
         }
 
         return gran;
     }
 
-    private int Exec6502( int hwRemCpuCycles)
+    private int Exec6502(int hwRemCpuCycles)
     {
-        throw new NotImplementedException();
+        while (hwRemCpuCycles > 0)
+        {
+            var curCC = GetCycleCount();
+
+            SetDisassembly();
+
+            //Have to read this first otherwise it causes tests to fail on a NES
+            CurrentOpCode = ReadMemoryValue(ProgramCounter);
+
+            ProgramCounter++;
+
+            ExecuteOpCode();
+
+            var lastCC = GetCycleCount();
+            hwRemCpuCycles -= (lastCC - curCC);
+        }
+
+        return hwRemCpuCycles;
     }
 
-    private void Int6502( int intIrq, int irqvectFp)
+    private void Int6502(int intType, int intVector )
     {
-        throw new NotImplementedException();
+        if ((intType == INT_NMI) || ((intType == INT_IRQ) && !(DisableInterruptFlag)))
+        {
+            IncrementCycleCount();
+            // R->ICount-=7;
+            _cycleCount -= 7;
+
+            // Save PC to Stack
+            PokeStack((byte)(((ProgramCounter) >> 8) & 0xFF));
+            StackPointer--;
+            PokeStack((byte)((ProgramCounter) & 0xFF));
+            StackPointer--;
+            PokeStack(ConvertFlagsToByte(true));
+            StackPointer--;
+
+            DecimalFlag = false;
+
+            int targetVector;
+
+            if (intType == INT_NMI)
+            {
+                targetVector = intVector == 0 ? 0xFFFA : intVector;
+            }
+            else
+            {
+                DisableInterruptFlag = true;
+                targetVector = intVector == 0 ? 0xFFFE : intVector;
+            }
+
+            var pcLow = ReadMemoryValue(targetVector);
+            var pcHigh = ReadMemoryValue(targetVector+1);
+            int temp = (ushort)(((pcHigh) & 0xFF) << 8 | (pcLow) & 0xFF);
+            ProgramCounter = temp;
+        }
     }
 
-    public override byte ReadMemoryValue(int addr)
+
+    private byte CoreReadMemoryValue(int addr)
     {
-        byte r=0xff;
+        byte r = 0xff;
         switch (addr)
         {
             case < 0x600:
-                r= ram[addr];
+                r = ram[addr];
                 break;
             case >= 0x1000 and < 0x1200:
-                r= dram[addr-0x1000];
+                r = dram[addr - 0x1000];
                 break;
             case >= 0x3000 and < 0x4000:
-                r=ioRead((short)addr);
+                r = ioRead((short)addr);
                 break;
             case >= 0x4000 and < 0xc000:
-                r=roms[hw.bankSel][addr-0x4000];
+                r = roms[hw.bankSel][addr - 0x4000];
                 break;
             case >= 0xc000:
-                r=roms[0][addr-0xc000];
+                r = roms[0][addr - 0xc000];
                 break;
             default:
                 Console.WriteLine("emu: invalid read: addr 0x{0:X4}\n", addr);
-                Trace= true;
+                Trace = true;
                 break;
         }
-//	printf("Rd 0x%04X 0x%02X\n", addr, r);
+
         return r;
-}
+    }
+
+    public override byte ReadMemoryValue(int address)
+    {
+        byte r = CoreReadMemoryValue(address);
+        IncrementCycleCount();
+        return r;
+    }
+
+    public override byte ReadMemoryValueWithoutCycle(int address)
+    {
+        return CoreReadMemoryValue(address);
+    }
 
     public override void WriteMemoryValue(int addr, byte val)
     {
-        if (addr<0x600) {
-            ram[addr]=val;
-        } else if (addr>=0x1000 &&  addr<0x1200) {
-            dram[addr-0x1000]=val;
-        } else if (addr>=0x3000 &&  addr<0x4000) {
-            ioWrite( addr, val);
-        } else {
-            Console.WriteLine("emu: invalid write: addr 0x{0:X4} val 0x{1:X2}\n", addr, val);
-            Trace=true;
+        if (addr < 0x600)
+        {
+            ram[addr] = val;
         }
+        else if (addr >= 0x1000 && addr < 0x1200)
+        {
+            if (val > 0)
+            {
+                
+            }
+            dram[addr - 0x1000] = val;
+        }
+        else if (addr >= 0x3000 && addr < 0x4000)
+        {
+            ioWrite(addr, val);
+        }
+        else
+        {
+            Console.WriteLine("emu: invalid write: addr 0x{0:X4} val 0x{1:X2}\n", addr, val);
+            Trace = true;
+        }
+
+        IncrementCycleCount();
     }
- 
+
+
+    public void tamaRun(int cycles)
+    {
+        int i;
+        while (cycles > 0) cycles -= tamaHwTick(128);
+    }
 }

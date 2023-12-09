@@ -26,7 +26,7 @@ public class I2cBus
         // free(b);
     }
 
-    int i2cHandle(int scl, int sda)
+    public int i2cHandle(int scl, int sda)
     {
         int ret = oldOut;
 //	printf("I2c state: %d\n", state);
