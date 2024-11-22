@@ -36,7 +36,7 @@ public class i2ceeprom : I2cDev
             backing.Seek(adr, SeekOrigin.Begin);
             backing.WriteByte(val);
 
-            Console.WriteLine("I2CEEprom write: ({0:D}) addr {1:X4} val {2:X2}\n", byteNo-2, adr, val);
+            //Console.WriteLine("I2CEEprom write: ({0:D}) addr {1:X4} val {2:X2}\n", byteNo-2, adr, val);
             adr++;
             //Simulate in-page rollover
             adr = page | (adr & 0x1F);

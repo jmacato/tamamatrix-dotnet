@@ -29,14 +29,14 @@ public class I2cBus
     public int i2cHandle(int scl, int sda)
     {
         int ret = oldOut;
-        // Console.WriteLine("I2c state: {0:D}", state);
-        // Console.WriteLine("I2c received: scl {0:X2} sda {1:X2}", scl, sda);
+        // // Console.WriteLine("I2c state: {0:D}", state);
+        // // Console.WriteLine("I2c received: scl {0:X2} sda {1:X2}", scl, sda);
         if (oldScl  > 0 && scl > 0 && oldSda != 1 && sda == 1) 
         {
             //Stop condition.
             state = I2C_IDLE;
             ret = 1;
-            Console.WriteLine("I2C: stop\n");
+            // Console.WriteLine("I2C: stop\n");
         }
         else if    (oldScl >= 1 && scl >= 1 && oldSda == 1 && sda != 1) 
         {
@@ -44,7 +44,7 @@ public class I2cBus
             state = I2C_B0;
             byteCnt = 0;
             dirOut = 0;
-            Console.WriteLine("I2C: start\n");
+            // Console.WriteLine("I2C: start\n");
             ret = 1;
         }
         else if (oldScl == 0 && scl  > 0 && oldSda == sda && state!=I2C_IDLE) 
@@ -92,7 +92,7 @@ public class I2cBus
                 else
                 {
                     //Byte is in.
-                    Console.WriteLine("I2C: got byte {0:X} val 0x{1:X}\n", byteCnt, val);
+                    // Console.WriteLine("I2C: got byte {0:X} val 0x{1:X}\n", byteCnt, val);
                     if (byteCnt == 0)
                     {
                         //Address byte
